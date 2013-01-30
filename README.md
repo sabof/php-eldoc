@@ -1,6 +1,12 @@
 # php-eldoc
 eldoc backend for php.
 
+Provides eldoc functionality for global functions, but not classes, or methods.
+Contains a list of standard php functions. It is also possilbe to access
+function from a specific project/framework, see example.
+
+Also provides a source for autocomplete
+
 ### Sample php-mode-hook:
 
 (defun php-mode-options ()
