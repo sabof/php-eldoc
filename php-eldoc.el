@@ -2102,11 +2102,12 @@
          (counter 0))
     (when hash-result
       (dolist (arg hash-result)
-        (setq arguments (concat arguments
-                                (if (equal counter (second func))
-                                    (propertize arg 'face '(:weight bold))
-                                    arg)
-                                ", "))
+        (setq arguments
+              (concat arguments
+                      (if (equal counter (second func))
+                          (propertize arg 'face '(:weight bold))
+                          arg)
+                      ", "))
         (incf counter)))
     (when (>= (length arguments) 2)
       (setq arguments (substring arguments 0 (- (length arguments) 2))))
