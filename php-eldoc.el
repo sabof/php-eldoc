@@ -2117,18 +2117,19 @@
 (defvar php-remote-functions nil)
 
 (defun php-eldoc-probe-callback (orignial-buffer)
-  (goto-char (point-min))
-  (search-forward "(set")
-  (goto-char (match-beginning 0))
-  (delete-region (point-min) (point))
-  (eval-buffer)
-  (es-kill-buffer-dont-ask)
-  (set-buffer orignial-buffer)
-  (setq-local php-eldoc-functions-hash
-              (let ((hash (make-hash-table :size 2500 :test 'equal)))
-                (dolist (func php-remote-functions)
-                  (puthash (car func) (rest func) hash))
-                hash)))
+  (let (php-remote-functions)
+    (goto-char (point-min))
+    (search-forward "\n\n")
+    (delete-region (point-min) (point))
+    (eval-buffer)
+    (kill-buffer)
+    (set-buffer orignial-buffer)
+    (setq-local
+     php-eldoc-functions-hash
+     (let ((hash (make-hash-table :size 2500 :test 'equal)))
+       (dolist (func php-remote-functions)
+         (puthash (car func) (rest func) hash))
+       hash))))
 
 (defun php-eldoc-probe-load (url)
   (url-retrieve
