@@ -2150,7 +2150,8 @@
                                    (looking-at "[ \n]"))
                           (forward-char))
                         (equal (char-after) ?\())
-                  (thing-at-point 'symbol)
+                  (list (thing-at-point 'symbol)
+                        nil)
                   ))
               (save-excursion
                 (while (in-string-p)
