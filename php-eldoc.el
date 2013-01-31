@@ -29,6 +29,7 @@
 
 ;;; Code:
 (require 'cl)
+(require 'thingatpt)
 (defvar php-remote-functions nil)
 
 (defvar php-eldoc-functions-hash
@@ -2125,8 +2126,85 @@
             ))
     hash))
 
+(defun php-eldoc-mark-symbol-at-point ()
+  (flet ((message (&rest ignore)))
+    (if (looking-at "\\=\\(\\s_\\|\\sw\\)*\\_>")
+        (goto-char (match-end 0))
+        (unless (memq (char-before) '(?\) ?\"))
+          (forward-sexp))))
+  (mark-sexp -1)
+  (exchange-point-and-mark)
+  (when (equal (char-after) ?\')
+    (forward-char)))
+
+(defun php-function-and-argument ()
+  (condition-case error
+      (let ((start-pos (point))
+            argument
+            (function-name-chars "[-A-Za-z[:digit:]_]")
+            (not-function-name-chars "[^-A-Za-z[:digit:]_]"))
+        (flet ((find-argument-pos ()
+                 (let ((arg-pos 0))
+                   (search-forward "(")
+                   (forward-char)
+                   (while (< (point) start-pos)
+                     ;; (yes-or-no-p (int-to-string arg-pos))
+                     (forward-sexp)
+                     (when (equal (char-after)
+                                  ?\,)
+                       (when (< (point) start-pos)
+                         (incf arg-pos))))
+                   arg-pos)))
+          (or (save-excursion
+                (when (save-excursion
+                        (while (or (looking-at function-name-chars)
+                                   (looking-at "[ \n]"))
+                          (forward-char))
+                        (equal (char-after) ?\())
+                  (php-eldoc-mark-symbol-at-point)
+                  (list (buffer-substring-no-properties
+                         (region-beginning) (region-end))
+                        nil)))
+              (save-excursion
+                (while (in-string-p)
+                  (backward-char))
+                           (let* (( closing-paren
+                       (save-excursion
+                         (when (search-backward ")" nil t)
+                           (point))))
+                     ( boundary
+                       (save-excursion (search-backward "(")
+                                       (when (and closing-paren
+                                                  (> closing-paren (point)))
+                                         (error "not inside argument list"))
+                                       (point)))
+                     ( argument-number
+                       (let ((counter 0))
+                         (while (search-backward "," boundary t)
+                           (incf counter))
+                         counter))
+                     ( function-name
+                       (progn (goto-char boundary)
+                              (re-search-backward function-name-chars)
+                              (forward-char)
+                              (setq boundary (point))
+                              (ignore-errors
+                                (while (progn (backward-char)
+                                              (when (looking-at function-name-chars)
+                                                (if (equal (point) (point-min))
+                                                    (error "beginning of buffer")
+                                                    t)))
+                                  nil)
+                                (forward-char))
+                              (buffer-substring (point) boundary))))
+                (list function-name argument-number))))))
+    (error nil
+           ;; (message "php-eldoc Error: %s "
+           ;;          error)
+           )))
+
 (defun php-eldoc-function ()
-  (let* ((func (sc-function-and-argument))
+  (let* ((func (php-function-and-argument))
          (hash-result (when func (gethash (car func) php-eldoc-functions-hash)))
          (arguments "")
          (counter 0))
@@ -2179,6 +2257,7 @@
       (cache)
       (symbol . "f"))))
 
+;;;###autoload
 (defun php-eldoc-enable ()
   (interactive)
   (when (and (fboundp 'auto-complete-mode)
