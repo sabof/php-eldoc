@@ -2131,8 +2131,7 @@
   (condition-case error
       (let ((start-pos (point))
             argument
-            (function-name-chars "[-A-Za-z[:digit:]_]")
-            (not-function-name-chars "[^-A-Za-z[:digit:]_]"))
+            (function-name-chars-regex "[-A-Za-z[:digit:]_]"))
         (flet ((find-argument-pos ()
                  (let ((arg-pos 0))
                    (search-forward "(")
@@ -2147,13 +2146,11 @@
                    arg-pos)))
           (or (save-excursion
                 (when (save-excursion
-                        (while (or (looking-at function-name-chars)
-                                   (looking-at "[ \n]"))
-                          (forward-char))
+                        (while (or (plusp (skip-syntax-forward "_w\\s-"))
+                                   (plusp (skip-chars-forward "\n"))))
                         (equal (char-after) ?\())
                   (list (thing-at-point 'symbol)
-                        nil)
-                  ))
+                        nil)))
               (save-excursion
                 (while (in-string-p)
                   (backward-char))
@@ -2174,19 +2171,20 @@
                            counter))
                        ( function-name
                          (progn (goto-char boundary)
-                                (re-search-backward function-name-chars)
+                                (re-search-backward function-name-chars-regex)
                                 (forward-char)
                                 (setq boundary (point))
                                 (ignore-errors
-                                  (while (progn (backward-char)
-                                                (when (looking-at function-name-chars)
-                                                  (if (equal (point) (point-min))
-                                                      (error "beginning of buffer")
-                                                      t)))
-                                  nil)
-                                (forward-char))
-                              (buffer-substring (point) boundary))))
-                (list function-name argument-number))))))
+                                  (while
+                                      (progn (backward-char)
+                                             (when (looking-at
+                                                    function-name-chars-regex)
+                                               (if (equal (point) (point-min))
+                                                   (error "beginning of buffer")
+                                                   t))))
+                                  (forward-char))
+                                (buffer-substring (point) boundary))))
+                  (list function-name argument-number))))))
     (error nil
            ;; (message "php-eldoc Error: %s "
            ;;          error)
@@ -2194,7 +2192,8 @@
 
 (defun php-eldoc-function ()
   (let* ((func (php-function-and-argument))
-         (hash-result (when func (gethash (car func) php-eldoc-functions-hash)))
+         (hash-result (when func
+                        (gethash (car func) php-eldoc-functions-hash)))
          (arguments "")
          (counter 0))
     (when hash-result
