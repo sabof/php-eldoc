@@ -2132,59 +2132,47 @@
       (let ((start-pos (point))
             argument
             (function-name-chars-regex "[-A-Za-z[:digit:]_]"))
-        (flet ((find-argument-pos ()
-                 (let ((arg-pos 0))
-                   (search-forward "(")
-                   (forward-char)
-                   (while (< (point) start-pos)
-                     ;; (yes-or-no-p (int-to-string arg-pos))
-                     (forward-sexp)
-                     (when (equal (char-after)
-                                  ?\,)
-                       (when (< (point) start-pos)
-                         (incf arg-pos))))
-                   arg-pos)))
-          (or (save-excursion
-                (when (save-excursion
-                        (while (or (plusp (skip-syntax-forward "_w\\s-"))
-                                   (plusp (skip-chars-forward "\n"))))
-                        (equal (char-after) ?\())
-                  (list (thing-at-point 'symbol)
-                        nil)))
-              (save-excursion
-                (while (in-string-p)
-                  (backward-char))
-                (let* (( closing-paren
-                         (save-excursion
-                           (when (search-backward ")" nil t)
-                             (point))))
-                       ( boundary
-                         (save-excursion (search-backward "(")
-                                         (when (and closing-paren
-                                                    (> closing-paren (point)))
-                                           (error "not inside argument list"))
-                                         (point)))
-                       ( argument-number
-                         (let ((counter 0))
-                           (while (search-backward "," boundary t)
-                             (incf counter))
-                           counter))
-                       ( function-name
-                         (progn (goto-char boundary)
-                                (re-search-backward function-name-chars-regex)
-                                (forward-char)
-                                (setq boundary (point))
-                                (ignore-errors
-                                  (while
-                                      (progn (backward-char)
-                                             (when (looking-at
-                                                    function-name-chars-regex)
-                                               (if (equal (point) (point-min))
-                                                   (error "beginning of buffer")
-                                                   t))))
-                                  (forward-char))
-                                (buffer-substring (point) boundary))))
-                  (list function-name argument-number))))))
+        (or (save-excursion
+              (when (save-excursion
+                      (while (or (plusp (skip-syntax-forward "_w\\s-"))
+                                 (plusp (skip-chars-forward "\n"))))
+                      (equal (char-after) ?\())
+                (list (thing-at-point 'symbol)
+                      nil)))
+            (save-excursion
+              (while (in-string-p)
+                (backward-char))
+              (let* (( closing-paren
+                       (save-excursion
+                         (when (search-backward ")" nil t)
+                           (point))))
+                     ( boundary
+                       (save-excursion (search-backward "(")
+                                       (when (and closing-paren
+                                                  (> closing-paren (point)))
+                                         (error "not inside argument list"))
+                                       (point)))
+                     ( argument-number
+                       (let ((counter 0))
+                         (while (search-backward "," boundary t)
+                           (incf counter))
+                         counter))
+                     ( function-name
+                       (progn (goto-char boundary)
+                              (re-search-backward function-name-chars-regex)
+                              (forward-char)
+                              (setq boundary (point))
+                              (ignore-errors
+                                (while
+                                    (progn (backward-char)
+                                           (when (looking-at
+                                                  function-name-chars-regex)
+                                             (if (equal (point) (point-min))
+                                                 (error "beginning of buffer")
+                                                 t))))
+                                (forward-char))
+                              (buffer-substring (point) boundary))))
+                (list function-name argument-number)))))
     (error nil
            ;; (message "php-eldoc Error: %s "
            ;;          error)
@@ -2197,7 +2185,7 @@
          (arguments "")
          (counter 0))
     (when hash-result
-      (dolist (arg hash-result)
+      (cl-dolist (arg hash-result)
         (setq arguments
               (concat arguments
                       (if (equal counter (second func))
@@ -2222,7 +2210,7 @@
   (setq-local
    php-eldoc-functions-hash
    (let ((hash (make-hash-table :size 2500 :test 'equal)))
-     (dolist (func php-remote-functions)
+     (cl-dolist (func php-remote-functions)
        (puthash (car func) (rest func) hash))
      hash)))
 
@@ -2255,4 +2243,4 @@
   (eldoc-mode 1))
 
 (provide 'php-eldoc)
-;; php-eldoc.el ends here
+;;; php-eldoc.el ends here
