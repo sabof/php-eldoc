@@ -1,7 +1,9 @@
 ;;; php-eldoc.el --- eldoc backend for php
-;;; Version: 0.1
-;;; Author: sabof
+;;; Version: 0.2
+;;; Author: sabof, Matthew Carter <m@ahungry.com>
+;;; Copyright (C) 2015 Matthew Carter <m@ahungry.com>
 ;;; URL: https://github.com/sabof/php-eldoc
+;;; URL: https://github.com/ahungry/php-eldoc
 
 ;;; Commentary:
 ;; You should find probe.php in the same directory as this file.
@@ -2127,52 +2129,73 @@
             ))
     hash))
 
+(defvar php-eldoc-functions-list
+  (let ((fn-list (list)))
+    (maphash (lambda (k v) (push k fn-list)) php-eldoc-functions-hash)
+    (nreverse fn-list)) "Store the hash table in a list for find matching")
+
+(defun php-eldoc-fuzzy-find (needle haystack)
+  "Roughly find a match in a list of values.  Assumes a string
+and a haystack which is a list of strings."
+  (find needle haystack
+        :test (lambda (v k)
+                (string= v (subseq k 0 (min (length k) (length v)))))))
+
 (defun php-function-and-argument ()
   (condition-case error
       (let ((start-pos (point))
             argument
             (function-name-chars-regex "[-A-Za-z[:digit:]_]"))
-        (or (save-excursion
-              (when (save-excursion
-                      (while (or (plusp (skip-syntax-forward "_w\\s-"))
-                                 (plusp (skip-chars-forward "\n"))))
-                      (equal (char-after) ?\())
-                (list (thing-at-point 'symbol)
-                      nil)))
-            (save-excursion
-              (while (in-string-p)
-                (backward-char))
-              (let* (( closing-paren
-                       (save-excursion
-                         (when (search-backward ")" nil t)
-                           (point))))
-                     ( boundary
-                       (save-excursion (search-backward "(")
-                                       (when (and closing-paren
-                                                  (> closing-paren (point)))
-                                         (error "not inside argument list"))
-                                       (point)))
-                     ( argument-number
-                       (let ((counter 0))
-                         (while (search-backward "," boundary t)
-                           (incf counter))
-                         counter))
-                     ( function-name
-                       (progn (goto-char boundary)
-                              (re-search-backward function-name-chars-regex)
-                              (forward-char)
-                              (setq boundary (point))
-                              (ignore-errors
-                                (while
-                                    (progn (backward-char)
-                                           (when (looking-at
-                                                  function-name-chars-regex)
-                                             (if (equal (point) (point-min))
-                                                 (error "beginning of buffer")
-                                                 t))))
-                                (forward-char))
-                              (buffer-substring (point) boundary))))
-                (list function-name argument-number)))))
+        (or
+         (save-excursion ;; This snippet lets matching on functions occur before we add parens
+           (skip-syntax-backward "^w") ;; Allow whitespace after FN for GNU style
+           (let ((func-name (thing-at-point 'symbol)))
+             (unless (gethash func-name php-eldoc-functions-hash)
+               (setq func-name (php-eldoc-fuzzy-find func-name php-eldoc-functions-list)))
+             (when (gethash func-name php-eldoc-functions-hash)
+               (list func-name nil))))
+         (save-excursion
+           (when (save-excursion
+                   (while (or (plusp (skip-syntax-forward "_w\\s-"))
+                              (plusp (skip-chars-forward "\n"))))
+                   (or (equal (char-after) ?\()
+                       (equal (char-after) ?\ )))
+             (list (thing-at-point 'symbol)
+                   nil)))
+         (save-excursion
+           (while (in-string-p)
+             (backward-char))
+           (let* (( closing-paren
+                    (save-excursion
+                      (when (search-backward ")" nil t)
+                        (point))))
+                  ( boundary
+                    (save-excursion (search-backward "(")
+                                    (when (and closing-paren
+                                               (> closing-paren (point)))
+                                      (error "not inside argument list"))
+                                    (point)))
+                  ( argument-number
+                    (let ((counter 0))
+                      (while (search-backward "," boundary t)
+                        (incf counter))
+                      counter))
+                  ( function-name
+                    (progn (goto-char boundary)
+                           (re-search-backward function-name-chars-regex)
+                           (forward-char)
+                           (setq boundary (point))
+                           (ignore-errors
+                             (while
+                                 (progn (backward-char)
+                                        (when (looking-at
+                                               function-name-chars-regex)
+                                          (if (equal (point) (point-min))
+                                              (error "beginning of buffer")
+                                            t))))
+                             (forward-char))
+                           (buffer-substring (point) boundary))))
+             (list function-name argument-number)))))
     (error nil
            ;; (message "php-eldoc Error: %s "
            ;;          error)
@@ -2190,23 +2213,23 @@
               (concat arguments
                       (if (equal counter (second func))
                           (propertize arg 'face '(:weight bold))
-                          arg)
+                        arg)
                       ", "))
         (incf counter)))
     (when (>= (length arguments) 2)
       (setq arguments (substring arguments 0 (- (length arguments) 2))))
     (when hash-result
       (concat (propertize (first func) 'face 'font-lock-function-name-face)
-              "( " arguments " )")
+              " ( " arguments " )")
       )))
 
-(defun php-eldoc-probe-callback (orignial-buffer)
+(defun php-eldoc-probe-callback (original-buffer)
   (goto-char (point-min))
   (search-forward "\n\n")
   (delete-region (point-min) (point))
   (eval-buffer)
   (kill-buffer)
-  (set-buffer orignial-buffer)
+  (set-buffer original-buffer)
   (setq-local
    php-eldoc-functions-hash
    (let ((hash (make-hash-table :size 2500 :test 'equal)))
@@ -2229,9 +2252,9 @@
 
 (eval-after-load 'auto-complete
   '(ac-define-source php-eldoc
-    '((candidates . php-eldoc-ac-candidates)
-      (cache)
-      (symbol . "f"))))
+     '((candidates . php-eldoc-ac-candidates)
+       (cache)
+       (symbol . "f"))))
 
 ;;;###autoload
 (defun php-eldoc-enable ()
