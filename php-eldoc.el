@@ -2236,8 +2236,7 @@
 ;;;###autoload
 (defun php-eldoc-enable ()
   (interactive)
-  (when (and (fboundp 'auto-complete-mode)
-             auto-complete-mode)
+  (when (bound-and-true-p auto-complete-mode)
     (pushnew 'ac-source-php-eldoc ac-sources))
   (setq-local eldoc-documentation-function 'php-eldoc-function)
   (eldoc-mode 1))
